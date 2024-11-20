@@ -1,0 +1,65 @@
+
+1、
+// 计算k阶斐波那契序列第m项值的函数
+int kth_fibonacci(int k, int m) {
+    if (m < k) {
+        return 0;
+    } else if (k <= 0) {
+        return 0;
+    } else if (k == 1) {
+        return 1;
+    }
+
+    // 初始化一个长度为k的数组来存储前k项斐波那契数
+    int fib[k];
+    for (int i = 0; i < k; i++) {
+        fib[i] = 0;
+    }
+    fib[k - 1] = 1;
+
+    // 从第k项开始计算斐波那契数
+    for (int i = k; i < m; i++) {
+        int next_fib = 0;
+        for (int j = 0; j < k; j++) {
+            next_fib += fib[j];
+        }
+        // 更新数组，去掉最早的项，加入新计算的项
+        for (int j = 0; j < k - 1; j++) {
+            fib[j] = fib[j + 1];
+        }
+        fib[k - 1] = next_fib;
+    }
+
+    return fib[k - 1];
+}
+时间复杂度为O(mk)，空间复杂度为O(k)。
+2、
+long long f(long long int*a, long long int arrsize, long long int n) {
+	long long int i = 0;
+	long long int j;
+	if (n > arrsize) {
+		printf("Error");
+	}
+	else {
+		for (i = 0; i < n; i++) {
+			long long int m = 1;
+			for (j = 1; j <= i; j++) {
+				m = m * j;
+			}
+			long long int k = m * 2 * i;
+			if (k > MAXINT) {
+				printf("Error");
+			}
+			else {
+				a[i] = k;
+			}
+		}
+	}
+}
+时间复杂度是O(n)，空间复杂度是O(n)。
+3、
+（1）
+   (n^3+n^2+2*n)/4
+（2）
+   当n为偶数时，n/2
+   当n为奇数时，(n+1)/2

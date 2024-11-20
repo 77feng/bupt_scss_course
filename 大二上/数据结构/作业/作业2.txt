@@ -1,0 +1,159 @@
+1、存储地址 = 1000 + (102 - 1) * 4 = 1000 + 101 * 4 = 1000 + 404 = 1404
+2、
+// 定义插入函数
+void insert_into_sorted_list(int va[], int *n, int x) {
+    int i = *n - 1;
+
+    // 找到插入位置
+    while (i >= 0 && va[i] > x) {
+        va[i + 1] = va[i];
+        i--;
+    }
+
+    // 插入元素
+    va[i + 1] = x;
+
+    // 增加表的长度
+    (*n)++;
+}
+3、
+void mergeSets(int A[], int *m, int B[], int n) {
+    int temp[100]; // 假设最大容量为100
+    int i = 0, j = 0, k = 0;
+
+    while (i < *m && j < n) {
+        if (A[i] < B[j]) {
+            i++;
+        } else if (A[i] > B[j]) {
+            j++;
+        } else {
+            // A[i] == B[j]，将元素添加到交集中
+            if (k == 0 || temp[k - 1] != A[i]) {
+                temp[k++] = A[i];
+            }
+            i++;
+            j++;
+        }
+    }
+
+    // 将交集复制回A表
+    for (i = 0; i < k; i++) {
+        A[i] = temp[i];
+    }
+
+    *m = k; // 更新A的长度
+}
+4、
+#include <stdio.h>
+#include <stdlib.h>
+
+// 定义单链表节点结构
+struct Node {
+    int data;
+    struct Node* next;
+};
+
+// 创建一个新的节点
+struct Node* createNode(int data) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    if (newNode == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
+}
+
+// 在链表头部插入节点
+void insertAtHead(struct Node** head, int data) {
+    struct Node* newNode = createNode(data);
+    newNode->next = *head;
+    *head = newNode;
+}
+
+// 在链表尾部插入节点
+void insertAtTail(struct Node** head, int data) {
+    struct Node* newNode = createNode(data);
+    if (*head == NULL) {
+        *head = newNode;
+        return;
+    }
+    struct Node* current = *head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+    current->next = newNode;
+}
+
+// 删除指定数值的节点
+void deleteNode(struct Node** head, int data) {
+    struct Node* current = *head;
+    struct Node* prev = NULL;
+
+    while (current != NULL && current->data != data) {
+        prev = current;
+        current = current->next;
+    }
+
+    if (current == NULL) {
+        printf("未找到要删除的节点\n");
+        return;
+    }
+
+    if (prev == NULL) {
+        // 要删除的节点是头节点
+        *head = current->next;
+    } else {
+        prev->next = current->next;
+    }
+
+    free(current);
+}
+
+// 打印链表
+void printList(struct Node* head) {
+    struct Node* current = head;
+    while (current != NULL) {
+        printf("%d -> ", current->data);
+        current = current->next;
+    }
+    printf("NULL\n");
+}
+
+// 释放链表内存
+void freeList(struct Node* head) {
+    struct Node* current = head;
+    while (current != NULL) {
+        struct Node* temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+int main() {
+    struct Node* head = NULL;
+
+    insertAtHead(&head, 3);
+    insertAtHead(&head, 2);
+    insertAtHead(&head, 1);
+
+    printf("初始链表：");
+    printList(head);
+
+    insertAtTail(&head, 4);
+    insertAtTail(&head, 5);
+
+    printf("尾部插入后链表：");
+    printList(head);
+
+    deleteNode(&head, 3);
+    deleteNode(&head, 1);
+
+    printf("删除节点后链表：");
+    printList(head);
+
+    freeList(head); // 释放链表内存
+
+    return 0;
+}
