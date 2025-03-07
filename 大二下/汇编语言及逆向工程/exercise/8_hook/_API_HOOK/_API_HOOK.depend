@@ -1,0 +1,6 @@
+# depslib dependency file v1.0
+1684461093 source:d:\mydocs\my_univ\bupt-scss\courses\asm-and-reverse-engineering\program_codes\c_c++\8_hook\_api_hook\main.cpp
+	<stdio.h>
+	<string.h>
+	<windows.h>
+

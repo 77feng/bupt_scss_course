@@ -1,0 +1,25 @@
+# depslib dependency file v1.0
+1650778987 source:o:\bupt-scss\courses\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\main.c
+	"md5.h"
+
+1650764788 o:\bupt-scss\courses\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\md5.h
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	<stddef.h>
+
+1650764808 source:o:\bupt-scss\courses\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\md5.c
+	"md5.h"
+
+1650870116 source:o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\main.c
+	"md5.h"
+
+1661405111 o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\md5.h
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	<stddef.h>
+
+1654133319 source:o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\md5\md5.c
+	"md5.h"
+

@@ -1,0 +1,5 @@
+EXPORTS
+    _Z6printfPKcz @1
+    _Z8keyboardijl@12 @2
+    cnt @3 DATA
+    mhook @4 DATA

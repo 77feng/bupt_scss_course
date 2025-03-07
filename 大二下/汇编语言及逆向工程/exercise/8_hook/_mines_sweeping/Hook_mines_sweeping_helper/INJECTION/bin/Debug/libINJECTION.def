@@ -1,0 +1,19 @@
+EXPORTS
+    GameMap @1 DATA
+    MapSize @2 DATA
+    MinesSweepingHelper@0 @3
+    _Z11StartHelperv @4
+    _Z14LeftClickBlockii @5
+    _Z19OpenProcessWithNamePKw @6
+    _Z29DetectWinmineAndCaptureCursorv @7
+    _Z5scanfPKcz @8
+    _Z6printfPKcz @9
+    _Z7do_helpv @10
+    _Z7fprintfP6_iobufPKcz @11
+    _Z8SetSpeedv @12
+    _ZSt4ceilIiEN9__gnu_cxx11__enable_ifIXsrSt12__is_integerIT_E7__valueEdE6__typeES3_ @13
+    count_reset @14 DATA
+    hWinmine @15 DATA
+    hWnd @16 DATA
+    pCursor @17 DATA
+    speed @18 DATA

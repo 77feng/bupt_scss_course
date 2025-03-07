@@ -1,0 +1,7 @@
+# depslib dependency file v1.0
+1651733310 source:o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\_mines_sweeping\mines-c\main.c
+	<stdio.h>
+	"mines.h"
+
+1651806106 o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\_mines_sweeping\mines-c\mines.h
+

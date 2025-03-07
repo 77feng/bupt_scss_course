@@ -1,0 +1,29 @@
+# depslib dependency file v1.0
+1653647952 source:o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\8_hook\_mines_sweeping\mines_sweeping_helper\winmine_helper_by_debug.cpp
+	"winmine_helper_by_debug.h"
+	<windows.h>
+	<winuser.h>
+	<commctrl.h>
+	<math.h>
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<TlHelp32.h>
+
+1653645494 o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\8_hook\_mines_sweeping\mines_sweeping_helper\winmine_helper_by_debug.h
+	<windows.h>
+
+1653647952 source:o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\8_hook\_mines_sweeping\hook_mines_sweeping_helper\injection\winmine_helper_by_debug.cpp
+	"winmine_helper_by_debug.h"
+	<windows.h>
+	<winuser.h>
+	<commctrl.h>
+	<math.h>
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<TlHelp32.h>
+
+1653906206 o:\bupt-scss\courses_and_research\asm_and_reverse_engineering\programs\c_c++\8_hook\_mines_sweeping\hook_mines_sweeping_helper\injection\winmine_helper_by_debug.h
+	<windows.h>
+

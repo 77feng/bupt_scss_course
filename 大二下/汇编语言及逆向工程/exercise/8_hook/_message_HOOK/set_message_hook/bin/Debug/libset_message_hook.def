@@ -1,0 +1,8 @@
+EXPORTS
+    PID_message_hook @1 DATA
+    _Z23Get_PID_of_message_hookv @2
+    _Z25CloseProcess_message_hookv @3
+    _Z8keyboardijl@12 @4
+    cnt @5 DATA
+    mhook @6 DATA
+    proName @7 DATA

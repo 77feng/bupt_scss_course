@@ -1,0 +1,6 @@
+EXPORTS
+    MinesSweepingHelper @1
+    _Z14LeftClickBlockii @2
+    hWinmine @3 DATA
+    hWnd @4 DATA
+    pid @5 DATA

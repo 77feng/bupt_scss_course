@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1684456735 source:d:\mydocs\my_univ\bupt-scss\courses\asm-and-reverse-engineering\program_codes\c_c++\8_hook\_api_hook\obtainaddrofapi\main.c
+	<stdio.h>
+	<windows.h>
+

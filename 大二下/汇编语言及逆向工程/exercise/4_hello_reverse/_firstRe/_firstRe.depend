@@ -1,0 +1,11 @@
+# depslib dependency file v1.0
+1649575224 source:o:\bupt-scss\courses\asm_and_reverse_engineering\programs\c_c++\4_hello_reverse\_firstre\_firstre.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+
+1680138449 source:d:\mydocs\my_univ\bupt-scss\courses\asm-and-reverse-engineering\program_codes\c_c++\4_hello_reverse\_firstre\_firstre.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+

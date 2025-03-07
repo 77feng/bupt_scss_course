@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1650331123 source:o:\bupt-scss\courses\asm_and_reverse_engineering\programs\c_c++\5_cipher_reverse\affine\affineenc.c
+	<stdio.h>
+	<string.h>
+
