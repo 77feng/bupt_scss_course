@@ -1,0 +1,712 @@
+%{
+    #include "lex.yy.c"
+    
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <stdarg.h>
+
+    #include "head.h"
+
+    void yyerror();
+
+    Node* root=NULL;
+    int flag=0;
+
+    // Connect nodes in sequence
+    void connectNodes(int nextNum, ...) {
+        if (nextNum <= 0) {
+            // If there are no nodes or negative number of arguments, do nothing
+            return;
+        }
+    
+        va_list valist;
+        va_start(valist, nextNum); 
+
+        Node* temp = va_arg(valist, Node*); // Get the first node
+        Node* prev = temp;
+        int i;
+        for (i = 1; i < nextNum; i++) {
+            temp = va_arg(valist, Node*); // Get the next node
+            if (prev) {
+                prev->next = temp; 
+            }
+            prev = temp; // Update
+        }
+
+        if (temp) {
+            temp->next = NULL; 
+        }
+    
+        va_end(valist); 
+    }
+
+    bool isInFunction=false; // Flag to mark whether we are currently inside a function body
+    char *currentFunctionName; // Mark the name of the current function
+    bool indexError=false; // Flag to mark if there is an error with array subscript
+    void findCompstReturn(Node *Compst, char *expectedType);
+    void checkNestedStatements(Node *stmt, char *expectedType);
+    
+    // Struct operations
+    void insertVarDec(Node *node) {
+        if (!node->child->next) {
+            // If the child node does not have a next member, it is not an array type
+            addDec(node->child->id, lastType, node->lineno);
+        } else {
+            // If the child node has a next member, it is an array type
+            if (addDec(node->child->child->id, "array", node->lineno)) {
+                addArray(node->child->child->id, lastType, node->lineno);
+            }
+        }
+    }
+
+    void insertExtDecList(Node* node) {
+        // Handle the current variable declaration
+        insertVarDec(node->child);
+        if (node->child->next) {
+            // If there are multiple variable declarations (separated by commas), process the remaining declarations recursively
+            insertExtDecList(node->child->next->next);
+        }
+    }
+
+    void addStructMemberDefList(Node* node, char* structName) {
+        // Handle member declarations inside a struct
+        // node is DefList
+        // structName is the name of the struct
+        if(!node || !node->child) {
+            return;
+        }
+        Node* temp=node->child;
+        // temp is Def
+        Node* temp2=temp->child;
+        // temp2 is Specifier
+        // char* type=temp2->child->id;
+        char *type;
+        if (strcmp(temp2->child->type,"TYPE")==0) {
+            // Not a struct
+            type=temp2->child->id;
+        } else {
+            // Is a struct
+            type=temp2->child->child->next->id;
+        }
+        Node *temp3=temp->child->next;
+        // temp3 is DecList
+        while(temp3) {
+            Node* temp4=temp3->child;
+            // temp4 is Dec
+            Node* temp5=temp4->child;
+            // temp5 is VarDec
+            if(temp5->child->next==NULL) {
+                // Not an array
+                addStructMember(structName,temp5->child->id,type,temp5->lineno);
+            } else {
+                // Is an array
+                addStructMember(structName,temp5->child->child->id,"array",temp5->lineno);
+                addArray(temp5->child->child->id,type,temp5->lineno);
+            }
+            if(temp3->child->next) {
+                // Dec COMMA DecList
+                temp3=temp3->child->next->next;
+            } else {
+                // Dec
+                break;
+            }
+        }
+        if(node->child) {
+            // Def DefList
+            addStructMemberDefList(node->child->next,structName);
+        } else {
+            // Def
+            return;
+        }
+        return;
+    }
+
+    /* Function argument and variable insertion */
+    void insertFunctionArgs(char *funcName, Node *node) {
+        if (node == NULL) {
+            // If the node is empty, no more variables to process, return
+            return;
+        }
+
+        // Process the current ParamDec node
+        Node *param = node->child;
+        Node *specifier = param->child;
+        Node *varDec = specifier->next;
+        char *type = specifier->child->id; // Get type
+        char *name = varDec->child->id;    // Get variable name
+        // For simplicity, assume the argument is not an array type
+        addFunctionArgs(funcName, name, type, param->lineno);
+
+        // If there is a COMMA, it means there are more arguments, process the subsequent VarList recursively
+        Node *nextParam = node->child->next;
+        if (nextParam != NULL && strcmp(nextParam->type, "COMMA") == 0) {
+            insertFunctionArgs(funcName, nextParam->next);
+        }
+    }
+        
+    void insertFunctionVariables(Node *Dec) {
+        // If not inside a function or input node is empty, no need to process
+        if (!isInFunction || Dec == NULL) {
+            return;
+        }
+
+        // Inside the function body
+        Node *VarDec = Dec->child;
+        char *varName;
+        char *varType;
+        
+        // Check if it is an array type
+        if (VarDec->child->next) {
+            // Handle array type variables
+            varName = VarDec->child->child->id;
+            varType = "array";
+            addFunctionVariables(currentFunctionName, varName, varType, VarDec->lineno);
+            addArray(varName, lastType, VarDec->lineno);
+        } else {
+            // Handle regular variables
+            varName = VarDec->child->id;
+            varType = lastType;
+            addFunctionVariables(currentFunctionName, varName, varType, VarDec->lineno);
+        }
+
+        // Check assignment statements and verify type matching
+        Node *Assign = VarDec->next;
+        if (Assign && strcmp(Assign->type, "ASSIGN") == 0) {
+            Node *Exp = Assign->next;
+            if (strcmp(Exp->valueType, "error") != 0 && strcmp(Exp->valueType, lastType) != 0) {
+                printf("Error type 5 at line %d: Type mismatched for assignment\n", Exp->lineno);
+            }
+        }
+    }
+
+    /* Expression checks */
+    void checkType(Node *exp, const char *expectedType, int errorType, int lineno) {
+        if (strcmp(exp->valueType, "error") == 0) {
+            // Type is already error, previous steps have already reported the error, do not repeat here.
+            return;
+        }
+        if (expectedType != NULL && strcmp(exp->valueType, expectedType) != 0) {
+            printf("Error type %d at line %d: Type mismatched for operands\n", errorType, lineno);
+        }
+    }
+
+    void checkSingleArithmeticExp(Node *exp) {
+        // Check if the type of a single Exp is int or float
+        checkType(exp, NULL, 7, exp->lineno);
+        if (strcmp(exp->valueType, "int") != 0 && strcmp(exp->valueType, "float") != 0) {
+            printf("Error type 7 at line %d: Type mismatched for operands, expected int or float\n", exp->lineno);
+        }
+    }
+
+    void checkSingleLogicalExp(Node *exp) {
+        // Check if the type of a single Exp is int
+        checkType(exp, "int", 7, exp->lineno);
+    }
+
+    void checkExpArithmeticSymbols(Node *exp1, Node *exp2) {
+        // Assume arithmetic operations can only be performed by variables of int or float types
+        checkType(exp1, NULL, 7, exp1->lineno);
+        checkType(exp2, NULL, 7, exp2->lineno);
+        if ((strcmp(exp1->valueType, "int") != 0 && strcmp(exp1->valueType, "float") != 0) || 
+            (strcmp(exp2->valueType, "int") != 0 && strcmp(exp2->valueType, "float") != 0)) {
+            printf("Error type 7 at line %d: Type mismatched for operands, expected int or float\n", exp1->lineno);
+        }
+        if (strcmp(exp1->valueType, exp2->valueType) != 0) {
+            printf("Error type 7 at line %d: Type mismatched for operands, expected same type\n", exp1->lineno);
+        }
+    }
+
+        // Check logical symbols in expressions
+    void checkExpLogicalSymbols(Node *exp1, Node *exp2) {
+        // Assume logical operations can only be performed by variables of int type
+        checkType(exp1, "int", 7, exp1->lineno);
+        checkType(exp2, "int", 7, exp2->lineno);
+    }
+
+    // Check the left and right sides of an assignment statement for type matching
+    void checkExpAssign(Node *exp1, Node *exp2) {
+        // Check the type matching of the left and right sides of the assignment statement
+        checkType(exp1, NULL, 6, exp1->lineno);
+        checkType(exp2, NULL, 5, exp2->lineno);
+        if (exp1->rvalue) {
+            printf("Error type 6 at line %d: rvalue on the left side of assignment operator\n", exp1->lineno);
+            return;
+        }
+        if (strcmp(exp1->valueType, exp2->valueType) != 0) {
+            printf("Error type 5 at line %d: Type mismatched for assignment\n", exp1->lineno);
+        }
+    }
+
+    // Check if an expression has the specific expected type
+    void checkExpWithType(Node *Exp, char *expectedType) {
+        // Check if Exp type is expectedType
+        checkType(Exp, expectedType, 7, Exp->lineno);
+    }
+
+    // Check the definition of a variable or function
+    void checkDef(Node *Def) {
+        // expectedType is the type of the definition
+        char *expectedType = lastType;
+        Node *DecList = Def->child->next;
+        
+        // Process all declarations in the definition list
+        while (DecList) {
+            Node *Dec = DecList->child;
+            Node *VarDec = Dec->child;
+
+            // If there is an assignment (ASSIGN), check if the expression (Exp) type matches
+            Node *Assign = VarDec->next;
+            if (Assign && strcmp(Assign->type, "ASSIGN") == 0) {
+                Node *Exp = Assign->next;
+                if (strcmp(Exp->valueType, "error") != 0 && strcmp(Exp->valueType, expectedType) != 0) {
+                    printf("Error type 5 at line %d: Type mismatched for assignment\n", Exp->lineno);
+                }
+            }
+
+            // Move to the next declaration, if it exists
+            DecList = (Dec->next && strcmp(Dec->next->type, "COMMA") == 0) ? Dec->next->next : NULL;
+        }
+    }
+
+    // Set the node value as a right value
+    void setRValue(Node *node) {
+        if (node) {
+            node->rvalue = 1;
+        }
+    }
+
+    // Set the node type
+    void setEXPValueType(Node *node, char *type) {
+        if (node && type) {
+            strcpy(node->valueType, type);
+        }
+    }
+
+    /* Function argument and return type checking */
+    void checkFuncReturnType(Node* Compst, char *expectedType) {
+        if (!isInFunction || Compst == NULL) {
+            // If not inside a function or Compst is empty, no need to process
+            return;
+        }
+        // Recursively check the return statements in the function body
+        findCompstReturn(Compst, expectedType);
+    }
+
+    void findCompstReturn(Node *Compst, char *expectedType) {
+        Node *stmtList = Compst->child->next->next;
+        while (stmtList && stmtList->child) {
+            Node *stmt = stmtList->child;
+            if (strcmp(stmt->child->type, "RETURN") == 0) {
+                Node *exp = stmt->child->next;
+                if (exp && strcmp(exp->valueType, expectedType) != 0 && strcmp(exp->valueType, "error") != 0) {
+                    printf("Error type 8 at line %d: The return type mismatched\n", exp->lineno);
+                }
+            } else if (strcmp(stmt->child->type, "CompSt") == 0) {
+                findCompstReturn(stmt->child, expectedType);
+            } else {
+                // Handle possible nested statements, such as if-else and while statements
+                checkNestedStatements(stmt, expectedType);
+            }
+            stmtList = stmtList->next ? stmtList->next->child : NULL;
+        }
+    }
+
+    void checkNestedStatements(Node *stmt, char *expectedType) {
+        Node *head = stmt->child;
+        while (head) {
+            if (strcmp(head->type, "Stmt") == 0) {
+                if (strcmp(head->child->type, "CompSt") == 0) {
+                    findCompstReturn(head->child, expectedType);
+                } else if (strcmp(head->child->type, "RETURN") == 0) {
+                    Node *exp = head->child->next;
+                    if (exp && strcmp(exp->valueType, expectedType) != 0 && strcmp(exp->valueType, "error") != 0) {
+                        printf("Error type 8 at line %d: The return type mismatched\n", exp->lineno);
+                    }
+                }
+            }
+            head = head->next;
+        }
+    }
+
+    void checkFuncArgs(char *funcName, Node *Args, int argIndex) {
+        // Find the function definition
+        int funcIndex;
+        for(funcIndex = 0; funcIndex < defNum; funcIndex++) {
+            if(strcmp(def[funcIndex].name, funcName) == 0) {
+                break;
+            }
+        }
+        // If the function is not found, return directly
+        if(funcIndex == defNum) return;
+
+        Node *currentArg = Args->child;
+        // Check if the number and type of arguments match
+        if(argIndex < def[funcIndex].argNum) {
+            if(strcmp(currentArg->valueType, def[funcIndex].args[argIndex].type) != 0) {
+                printf("Error type 9 at line %d: Unmatched argument type for Function \"%s\"\n", currentArg->lineno, funcName);
+                return;
+            }
+        } else {
+            printf("Error type 9 at line %d: Too many arguments for Function \"%s\"\n", currentArg->lineno, funcName);
+            return;
+        }
+        // Recursively check the next argument, if it exists
+        if(currentArg->next) {
+            checkFuncArgs(funcName, currentArg->next->next, argIndex + 1);
+        } else if(argIndex + 1 < def[funcIndex].argNum) {
+            printf("Error type 9 at line %d: Too few arguments for Function \"%s\"\n", currentArg->lineno, funcName);
+        }
+    }
+
+    void checkFuncWithoutArgs(char *funcName, int lineno) {
+        // Find the function definition
+        int funcIndex;
+        for(funcIndex = 0; funcIndex < defNum; funcIndex++) {
+            if(strcmp(def[funcIndex].name, funcName) == 0) {
+                break;
+            }
+        }
+        // If the function is not found, return directly
+        if(funcIndex == defNum) return;
+
+        if(def[funcIndex].argNum != 0) {
+            printf("Error type 9 at line %d: Function \"%s\" expects no arguments\n", lineno, funcName);
+        }
+    }
+
+    /* Array operation checks */
+    bool checkExpArray(Node *arrayExp, Node *indexExp) {
+        // If the type of the index or array expression is already an error, no further checks are needed
+        if (strcmp(indexExp->valueType, "error") == 0 || strcmp(arrayExp->valueType, "error") == 0) {
+            return false;
+        }
+        // Check if the indexing operator is applied to a non-array variable
+        if (strcmp(arrayExp->valueType, "array") != 0) {
+            printf("Error type 10 at line %d: Indexing operator ([...]) applied to non-array variable \"%s\".\n", arrayExp->lineno, arrayExp->id);
+            return false;
+        }
+        // Check if the index is of integer type
+        if (strcmp(indexExp->valueType, "int") != 0) {
+            printf("Error type 12 at line %d: Array index is not an integer.\n", indexExp->lineno);
+            indexError = true; // Ensure that the external index error is marked
+            return true;
+        }
+        return true;
+    }
+
+    char* findArrayElemType(Node *exp) {
+        // Find the ID node of the array
+        Node *id = NULL;
+        bool found = false;
+        while (exp->child && !found) {
+            exp = exp->child;
+            Node *temp = exp;
+            while (temp) {
+                if (strcmp(temp->type, "ID") == 0) {
+                                        id = temp;
+                    found = true;
+                    break;
+                }
+                temp = temp->next;
+            }
+        }
+        // Look up the matching array in the definitions and return its element type
+        int i;
+        for (i = 0; i < defNum; i++) {
+            if (strcmp(def[i].name, id->id) == 0) {
+                return def[i].elemType;
+            }
+        }
+        return NULL; // If no matching definition is found, return NULL
+    }
+
+    /* Structure member checks */
+    bool checkExpStructure(Node *structureExp, Node *memberId) {
+        // If the expression type is in error, no further checks are needed
+        if (strcmp(structureExp->valueType, "error") == 0 || strcmp(memberId->valueType, "error") == 0) {
+            return false;
+        }
+
+        // Check if it is a structure
+        bool isStructureFound = false;
+        for (int i = 0; i < decNum && !isStructureFound; i++) {
+            if (strcmp(dec[i].name, structureExp->valueType) == 0) {
+                if (strcmp(dec[i].type, "structure") != 0) {
+                    printf("Error type 13 at line %d: Illegal member access on non-structure variable \"%s\"\n", 
+                        structureExp->lineno, structureExp->id);
+                    return false;
+                }
+                isStructureFound = true;
+            }
+        }
+
+        // If no corresponding structure definition is found, report an error
+        if (!isStructureFound) {
+            printf("Error type 13 at line %d: Illegal member access on non-structure variable \"%s\"\n", 
+                structureExp->lineno, structureExp->id);
+            return false;
+        }
+
+        // Check if the structure has the member
+        char *type = findStructureMemberType(structureExp->valueType, memberId->id);
+        if (!type) {
+            printf("Error type 14 at line %d: Structure '%s' has no member named '%s'\n", 
+                structureExp->lineno, structureExp->valueType, memberId->id);
+            return false;
+        }
+
+        return true;
+    }
+
+    /* Function call checks */
+    bool checkIfFuncExists(char *name, int lineno) {
+        // First, check if the global declarations contain the name
+        for (int i = 0; i < decNum; ++i) {
+            if (strcmp(dec[i].name, name) == 0) {
+                // Name matches, check if it is a function type
+                if (strcmp(dec[i].type, "function") != 0) {
+                    printf("Error type 11 at Line %d: '%s' is not a function name.\n", lineno, name);
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        // Next, check if there is a parameter or local declaration with the same name within the current function
+        for (int i = 0; i < defNum; ++i) {
+            if (strcmp(def[i].name, currentFunctionName) == 0) {
+                // Check parameters
+                for (int j = 0; j < def[i].argNum; ++j) {
+                    if (strcmp(def[i].args[j].name, name) == 0) {
+                        printf("Error type 11 at Line %d: '%s' is a parameter, not a function.\n", lineno, name);
+                        return false;
+                    }
+                }
+                // Check local declarations
+                for (int j = 0; j < def[i].decNum; ++j) {
+                    if (strcmp(def[i].dec[j].name, name) == 0) {
+                        if (strcmp(def[i].dec[j].type, "function") != 0) {
+                            printf("Error type 11 at Line %d: '%s' is not a function name.\n", lineno, name);
+                            return false;
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // If previous checks did not return, it means the function is undefined
+        printf("Error type 2 at Line %d: Function \"%s\" is invoked without definition.\n", lineno, name);
+        return false;
+    }
+
+    /* Variable checks */
+    char* checkExpId(Node *id) {
+        char *type = "error"; // Default type is "error"
+
+        // First, search in global declarations
+        for (int i = 0; i < decNum; ++i) {
+            if (strcmp(dec[i].name, id->id) == 0) {
+                return dec[i].type; // Match found, return the corresponding type
+            }
+        }
+
+        // Then check if it is a member of a structure definition
+        for (int i = 0; i < defNum; ++i) {
+            for (int j = 0; j < def[i].decNum; ++j) {
+                if (strcmp(def[i].dec[j].name, id->id) == 0) {
+                    return def[i].dec[j].type; // Match found, return the corresponding type
+                }
+            }
+        }
+
+        // Finally, check if it is a parameter or local variable within the current function
+        for (int i = 0; i < defNum; ++i) {
+            if (strcmp(def[i].name, currentFunctionName) == 0) {
+                // Check parameters
+                for (int j = 0; j < def[i].argNum; ++j) {
+                    if (strcmp(def[i].args[j].name, id->id) == 0) {
+                        return def[i].args[j].type; // Match found, return the corresponding type
+                    }
+                }
+                // Check local variables
+                for (int j = 0; j < def[i].decNum; ++j) {
+                    if (strcmp(def[i].dec[j].name, id->id) == 0) {
+                        return def[i].dec[j].type; // Match found, return the corresponding type
+                    }
+                }
+            }
+        }
+
+        // If the identifier is undefined and inside a function, print an error message
+        if (strcmp(type, "error") == 0 && isInFunction) {
+            printf("Error type 1 at line %d: Undefined variable \"%s\".\n", id->lineno, id->id);
+        }
+        return type; // If no matching declaration is found, return "error"
+    }
+%}
+
+
+
+%union
+{
+    int     num;
+    char*   str;
+    struct Head* node; /*"struct" is indispensable*/
+}
+
+
+%right ASSIGN
+%left OR
+%left AND
+%left LT LE GT GE NE EQ
+%left PLUS MINUS
+%left MUL DIV
+%right NOT NEGATIVE
+%nonassoc LC RC LB RB LP RP DOT
+
+%token <node> ID INT FLOAT CHAR STRUCT RETURN IF ELSE WHILE PLUS MINUS MUL DIV AND OR LT LE GT GE NE EQ NOT ASSIGN TYPE LP RP LB RB LC RC SEMI COMMA DOT ILLEGAL ILLEGAL_ID ILLEGAL_HEX_INT ILLEGAL_CHAR
+
+%type <node> Program ExtDefList ExtDef ExtDecList Specifier StructSpecifier VarDec FunDec VarList ParamDec CompSt StmtList Stmt DefList Def DecList Dec Exp Args
+%%
+
+Program: ExtDefList {$$=create_Node(0,"Program","",$1,NULL,0);root=$$;}
+
+ExtDefList: ExtDef ExtDefList  {connect_to_next(2,$1,$2);$$=create_Node(0,"ExtDefList","",$1,NULL,0);}
+          | /* empty */         {$$=create_Node(0,"empty","",NULL,NULL,100);}
+
+ExtDef: Specifier ExtDecList SEMI   {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"ExtDef","",$1,NULL,0);insert_ExtDecList($2);}
+      | Specifier ExtDecList error  {printf("Error type B at line %d: missing semicolon ';'\n", $1->lineno);}
+      | Specifier SEMI              {connect_to_next(2,$1,$2);$$=create_Node(0,"ExtDef","",$1,NULL,0);}
+      | Specifier FunDec CompSt     {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"ExtDef","",$1,NULL,0);if(is_in_function){set_func_return_type(current_function_name,$1->child->id);check_func_return_type($3,$1->child->id);}is_in_function=false;}
+
+ExtDecList: VarDec                      {$$=create_Node(0,"ExtDecList","",$1,NULL,0);}
+           | VarDec COMMA ExtDecList    {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"ExtDecList","",$1,NULL,0);}
+
+Specifier: TYPE                         {$$=create_Node(0,"Specifier","",$1,NULL,0);set_last_type($1->id);}
+          | StructSpecifier             {$$=create_Node(0,"Specifier","",$1,NULL,0);}
+
+StructSpecifier: STRUCT ID LC DefList RC    {connect_to_next(5,$1,$2,$3,$4,$5);$$=create_Node(0,"StructSpecifier","",$1,NULL,0);if(add_dec($2->id,"structure",$2->lineno)&&add_func_or_struct($2->id,$2->lineno,"structure")){add_struct_member_deflist($4,$2->id);}}
+               | STRUCT ID                  {connect_to_next(2,$1,$2);$$=create_Node(0,"StructSpecifier","",$1,NULL,0);set_last_type($2->id);}
+
+VarDec: ID                              {$$=create_Node(0,"VarDec","",$1,NULL,0);}
+       | ILLEGAL_ID error               {printf("Error type A at line %d: illegal identifier '%s'\n", $1->lineno,$1->id);}
+       | VarDec LB INT RB               {connect_to_next(4,$1,$2,$3,$4);$$=create_Node(0,"VarDec","",$1,NULL,0);}
+
+FunDec: ID LP VarList RP                {connect_to_next(4,$1,$2,$3,$4);$$=create_Node(0,"FunDec","",$1,NULL,0);if(add_dec($1->id,"function",$1->lineno)&&add_func_or_struct($1->id,$1->lineno,"function")){insert_function_args($1->id,$3);current_function_name=$1->id;is_in_function=true;} else{is_in_function=false;}}
+       | ID LP RP                       {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"FunDec","",$1,NULL,0);if(add_dec($1->id,"function",$1->lineno)&&add_func_or_struct($1->id,$1->lineno,"function")){current_function_name=$1->id;is_in_function=true;} else{is_in_function=false;}}
+       | ID LP VarList error            {printf("Error type B at line %d: missing closing symbols ')'\n", $1->lineno);}  
+       | ID LP error                    {printf("Error type B at line %d: missing closing symbols ')'\n", $1->lineno);} 
+
+VarList: ParamDec COMMA VarList         {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"VarList","",$1,NULL,0);}
+        | ParamDec                      {$$=create_Node(0,"VarList","",$1,NULL,0);}
+
+ParamDec: Specifier VarDec              {connect_to_next(2,$1,$2);$$=create_Node(0,"ParamDec","",$1,NULL,0);}
+
+CompSt: LC DefList StmtList RC          {connect_to_next(4,$1,$2,$3,$4);$$=create_Node(0,"CompSt","",$1,NULL,0);}
+
+StmtList: Stmt StmtList                 {connect_to_next(2,$1,$2);$$=create_Node(0,"StmtList","",$1,NULL,0);}
+         |Stmt Def StmtList error       {printf("Error type B at line %d: definition after statement\n", $2->lineno);}
+         | /* empty */                  {$$=create_Node(0,"empty","",NULL,NULL,100);}
+
+Stmt: Exp SEMI                          {connect_to_next(2,$1,$2);$$=create_Node(0,"Stmt","",$1,NULL,0);}
+    | CompSt                            {$$=create_Node(0,"Stmt","",$1,NULL,0);}
+    | RETURN Exp SEMI                   {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Stmt","",$1,NULL,0);}
+    | RETURN Exp error                  {printf("Error type B at line %d: missing semicolon ';'\n", $1->lineno);}     
+    | IF LP Exp RP Stmt                 {connect_to_next(5,$1,$2,$3,$4,$5);$$=create_Node(0,"Stmt","",$1,NULL,0);}
+    | IF LP Exp RP Stmt ELSE Stmt       {connect_to_next(7,$1,$2,$3,$4,$5,$6,$7);$$=create_Node(0,"Stmt","",$1,NULL,0);}
+    | WHILE LP Exp RP Stmt              {connect_to_next(5,$1,$2,$3,$4,$5);$$=create_Node(0,"Stmt","",$1,NULL,0);}
+
+DefList: Def DefList                    {connect_to_next(2,$1,$2);$$=create_Node(0,"DefList","",$1,NULL,0);}
+        | /* empty */                   {$$=create_Node(0,"empty","",NULL,NULL,100);}
+
+Def: Specifier DecList SEMI             {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Def","",$1,NULL,0);check_Def($$);}
+    | Specifier DecList error           {printf("Error type B at line %d: missing semicolon ';'\n", $1->lineno);}
+
+DecList: Dec                            {$$=create_Node(0,"DecList","",$1,NULL,0);}
+        | Dec COMMA DecList             {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"DecList","",$1,NULL,0);}
+
+Dec: VarDec                             {$$=create_Node(0,"Dec","",$1,NULL,0);insert_func_variables($$);}
+    | VarDec ASSIGN Exp                 {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Dec","",$1,NULL,0);insert_func_variables($$);}
+
+Exp: Exp ASSIGN Exp                     {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_assign($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp AND Exp                       {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp OR Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}    
+    | Exp LT Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}    
+    | Exp LE Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}    
+    | Exp GT Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp GE Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp NE Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp EQ Exp                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_logical_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,"int");}
+    | Exp PLUS Exp                      {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_arithmetic_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,$1->value_type);}
+    | Exp MINUS Exp                     {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_arithmetic_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,$1->value_type);}
+    | Exp MUL Exp                       {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_arithmetic_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,$1->value_type);}
+    | Exp DIV Exp                       {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);check_exp_arithmetic_symbols($1,$3);set_rvalue($$);set_EXP_value_type($$,$1->value_type);}
+    | LP Exp RP                         {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);strcpy($$->value_type,$2->value_type);$$->rvalue=$2->rvalue;}    //(b)
+    | LP Exp error                      {printf("Error type B at line %d: missing closing symbols ')'\n", $1->lineno);}
+    | MINUS Exp                         {connect_to_next(2,$1,$2);$$=create_Node(0,"Exp","",$1,NULL,0);check_single_arithmetic_exp($2);$$->rvalue=$2->rvalue;set_EXP_value_type($$,$2->value_type);}
+    | NOT Exp                           {connect_to_next(2,$1,$2);$$=create_Node(0,"Exp","",$1,NULL,0);check_single_logical_exp($2);$$->rvalue=$2->rvalue;set_EXP_value_type($$,$2->value_type);}
+    | ID LP Args RP                     {connect_to_next(4,$1,$2,$3,$4);$$=create_Node(0,"Exp","",$1,NULL,0);if(check_if_func_exist($1->id,$1->lineno)){check_func_args($1->id,$3,0);set_EXP_value_type($$,find_func_return_type($1->id));} else{set_EXP_value_type($$,"error");}}         //调用函数a(...)
+    | ID LP Args error                  {printf("Error type B at line %d: missing closing symbols ')'\n", $1->lineno);}
+    | ID LP RP                          {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);if(check_if_func_exist($1->id,$1->lineno)){check_func_without_args($1->id,$1->lineno);set_EXP_value_type($$,find_func_return_type($1->id));} else{set_EXP_value_type($$,"error");}}    //调用函数，无参数
+    | Exp LB Exp RB                     {connect_to_next(4,$1,$2,$3,$4);$$=create_Node(0,"Exp","",$1,NULL,0);if(check_exp_array($1,$3)){if(index_error){set_EXP_value_type($$,"None");index_error=false;}else{set_EXP_value_type($$,find_array_elem_type($1));}}else{set_EXP_value_type($$,"error");}}     //数组访问a[...]
+    | Exp DOT ID                        {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Exp","",$1,NULL,0);if(check_exp_structure($1,$3)){set_EXP_value_type($$,find_structure_member_type($1->value_type,$3->id));}else{strcpy($$->value_type,"None");}}    //结构体
+    | ID                                {$$=create_Node(0,"Exp","",$1,NULL,0);set_EXP_value_type($$,check_exp_id($1));}
+    | INT                               {$$=create_Node(0,"Exp","",$1,NULL,0);set_EXP_value_type($$,"int");$$->rvalue=1;}
+    | FLOAT                             {$$=create_Node(0,"Exp","",$1,NULL,0);set_EXP_value_type($$,"float");$$->rvalue=1;}
+    | CHAR                              {$$=create_Node(0,"Exp","",$1,NULL,0);set_EXP_value_type($$,"char");$$->rvalue=1;}
+    | ILLEGAL error                     {printf("Error type A at line %d: unknown lexeme '%s'\n", $1->lineno,$1->id);}
+    | ILLEGAL_HEX_INT error             {printf("Error type A at line %d: illegal hexadecimal integer '%s'\n", $1->lineno,$1->id);}
+    | ILLEGAL_CHAR error                {printf("Error type A at line %d: illegal hex_character '%s'\n", $1->lineno,$1->id);}
+    | Exp ILLEGAL Exp error             {printf("Error type A at line %d: illegal operator '%s'\n", $2->lineno,$2->id);}
+    
+
+Args: Exp COMMA Args                    {connect_to_next(3,$1,$2,$3);$$=create_Node(0,"Args","",$1,NULL,0);}
+     | Exp                              {$$=create_Node(0,"Args","",$1,NULL,0);}
+
+%%
+
+
+
+void yyerror() {
+    //printf("Syntax error at line %d: %s\n", line, s);
+    //printf("Error type B at line ");
+    flag = 1;
+    return;
+}
+
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <file_path>\n", argv[0]);
+        exit(-1);
+    } else if (!(yyin = fopen(argv[1], "r"))) {
+        perror(argv[1]);
+        exit(-1);
+    }
+    yyparse();
+    if (flag == 0) {
+        //printTree(root, 0);
+    }
+
+    /*
+    printf("\ntables:\n");
+    // Print symbol table
+    for (int i = 0; i < decNum; i++) {
+        printf("%s %s\n", dec[i].name, dec[i].type);
+    }
+    
+    // Print definition table
+    for (int i = 0; i < defNum; i++) {
+        printf("%s \n", def[i].name);
+        for (int j = 0; j < def[i].argNum; j++) {
+            printf("%s %s\n", def[i].args[j].name, def[i].args[j].type);
+        }
+        for (int j = 0; j < def[i].decNum; j++) {
+            printf("%s %s\n", def[i].dec[j].name, def[i].dec[j].type);
+        }
+        printf("return_type:%s\n", def[i].returnType);
+    }
+    */
+    return 0;
+}

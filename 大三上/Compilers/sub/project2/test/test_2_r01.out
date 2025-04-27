@@ -1,0 +1,3 @@
+Error type 1 at line 5: Undefined variable "x3".
+Error type 7 at line 5: Type mismatched for operands, expected int or float
+Error type 7 at line 5: Type mismatched for operands, expected same type

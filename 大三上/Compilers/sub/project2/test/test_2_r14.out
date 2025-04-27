@@ -1,0 +1,4 @@
+Error type 14 at line 10: Structure 'Girl' has no member named 'age'
+Error type 5 at line 10: Type mismatched for assignment
+Error type 14 at line 12: Structure 'Girl' has no member named 'weight'
+Error type 5 at line 12: Type mismatched for assignment

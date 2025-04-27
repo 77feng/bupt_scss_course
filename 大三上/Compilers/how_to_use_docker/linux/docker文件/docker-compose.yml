@@ -1,0 +1,17 @@
+version: '3'
+services:
+  compiler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bupt-compiler:latest
+    # 挂载宿主机的文件夹到容器中，从而实现宿主机和容器之间的文件共享。
+    # 请将 <path-to-workspace> 替换成你的工作目录
+    volumes:
+      - <path-to-workspace>:/mnt/Workspace
+    container_name: compiler
+    ports:
+      - 1022:22
+    privileged: true
+    stdin_open: true
+    tty: true

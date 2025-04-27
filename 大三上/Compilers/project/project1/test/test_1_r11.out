@@ -1,0 +1,4 @@
+Error type A at Line 3: illegal hex 0x77G
+Error type A at Line 4: illegal hex 0xCS
+Error type A at Line 7: illegal char '\x6u'
+Error type A at Line 8: illegal char '\x910'
