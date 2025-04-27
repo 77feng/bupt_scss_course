@@ -1,0 +1,126 @@
+//Filename: CWE78_OS_Command_Injection__char_file_w32_execv_06.c
+
+/*
+ * @description
+ * CWE: 78 OS Command Injection
+ * BadSource: file Read input from a file
+ * GoodSource: Fixed string
+ * Sink: w32_execv
+ *    BadSink : execute command with execv
+ * Flow Variant: 06 Control flow: if(STATIC_CONST_FIVE==5) and if(STATIC_CONST_FIVE!=5)
+ *
+ * */
+
+void CWE78_OS_Command_Injection__char_file_w32_execv_06_bad()
+{
+    char * data;
+    char dataBuffer[100] = COMMAND_ARG2;
+    data = dataBuffer;
+    if(STATIC_CONST_FIVE==5)
+    {
+        {
+            /* Read input from a file */
+            size_t dataLen = strlen(data);
+            FILE * pFile;
+            /* if there is room in data, attempt to read the input from a file */
+            if (100-dataLen > 1)
+            {
+                pFile = fopen(FILENAME, "r");
+                if (pFile != NULL)
+                {
+                    /* POTENTIAL FLAW: Read data from a file */
+                    if (fgets(data+dataLen, (int)(100-dataLen), pFile) == NULL)
+                    {
+                        printLine("fgets() failed");
+                        /* Restore NUL terminator if fgets fails */
+                        data[dataLen] = '\0';
+                    }
+                    fclose(pFile);
+                }
+            }
+        }
+    }
+    {
+        char *args[] = {COMMAND_INT_PATH, COMMAND_ARG1, COMMAND_ARG3, NULL};
+        /* execv - specify the path where the command is located */
+        /* POTENTIAL FLAW: Execute command without validating input possibly leading to command injection */
+        EXECV(COMMAND_INT_PATH, args);
+    }
+}
+
+
+/* goodG2B1() - use goodsource and badsink by changing the STATIC_CONST_FIVE==5 to STATIC_CONST_FIVE!=5 */
+static void goodG2B1()
+{
+    char * data;
+    char dataBuffer[100] = COMMAND_ARG2;
+    data = dataBuffer;
+    if(STATIC_CONST_FIVE!=5)
+    {
+        /* INCIDENTAL: CWE 561 Dead Code, the code below will never run */
+        printLine("Benign, fixed string");
+    }
+    else
+    {
+        /* FIX: Append a fixed string to data (not user / external input) */
+        strcat(data, "*.*");
+    }
+    {
+        char *args[] = {COMMAND_INT_PATH, COMMAND_ARG1, COMMAND_ARG3, NULL};
+        /* execv - specify the path where the command is located */
+        /* POTENTIAL FLAW: Execute command without validating input possibly leading to command injection */
+        EXECV(COMMAND_INT_PATH, args);
+    }
+}
+
+/* goodG2B2() - use goodsource and badsink by reversing the blocks in the if statement */
+static void goodG2B2()
+{
+    char * data;
+    char dataBuffer[100] = COMMAND_ARG2;
+    data = dataBuffer;
+    if(STATIC_CONST_FIVE==5)
+    {
+        /* FIX: Append a fixed string to data (not user / external input) */
+        strcat(data, "*.*");
+    }
+    {
+        char *args[] = {COMMAND_INT_PATH, COMMAND_ARG1, COMMAND_ARG3, NULL};
+        /* execv - specify the path where the command is located */
+        /* POTENTIAL FLAW: Execute command without validating input possibly leading to command injection */
+        EXECV(COMMAND_INT_PATH, args);
+    }
+}
+
+//test
+
+void function()
+{
+    char * data;
+    char dataBuffer[100] = COMMAND_ARG2;
+    data = dataBuffer;
+    if(STATIC_CONST_FIVE==5)
+    {
+        {
+            size_t dataLen = strlen(data);
+            FILE * pFile;
+            if (100-dataLen > 1)
+            {
+                pFile = fopen(FILENAME, "r");
+                if (pFile != NULL)
+                {
+                    if (fgets(data+dataLen, (int)(100-dataLen), pFile) == NULL)
+                    {
+                        printLine("fgets() failed");
+                        data[dataLen] = '\0';
+                    }
+                    fclose(pFile);
+                }
+            }
+        }
+    }
+    {
+        char *args[] = {COMMAND_INT_PATH, COMMAND_ARG1, COMMAND_ARG3, NULL};
+        EXECV(COMMAND_INT_PATH, args);
+    }
+}

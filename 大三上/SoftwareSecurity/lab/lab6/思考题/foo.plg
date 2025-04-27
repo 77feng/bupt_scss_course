@@ -1,0 +1,32 @@
+<html>
+<body>
+<pre>
+<h1>Build Log</h1>
+<h3>
+--------------------Configuration: foo - Win32 Debug--------------------
+</h3>
+<h3>Command Lines</h3>
+Creating temporary file "C:\DOCUME~1\bupt\LOCALS~1\Temp\RSP25.tmp" with contents
+[
+/nologo /MLd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /Fp"Debug/foo.pch" /YX /Fo"Debug/" /Fd"Debug/" /FD /GZ /c 
+"C:\Documents and Settings\bupt\×ÀÃæ\lab6\Ë¼¿¼Ìâ\foo.cpp"
+]
+Creating command line "cl.exe @C:\DOCUME~1\bupt\LOCALS~1\Temp\RSP25.tmp" 
+Creating temporary file "C:\DOCUME~1\bupt\LOCALS~1\Temp\RSP26.tmp" with contents
+[
+kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /incremental:yes /pdb:"Debug/foo.pdb" /debug /machine:I386 /out:"Debug/foo.exe" /pdbtype:sept 
+".\Debug\foo.obj"
+]
+Creating command line "link.exe @C:\DOCUME~1\bupt\LOCALS~1\Temp\RSP26.tmp"
+<h3>Output Window</h3>
+Compiling...
+foo.cpp
+Linking...
+
+
+
+<h3>Results</h3>
+foo.exe - 0 error(s), 0 warning(s)
+</pre>
+</body>
+</html>
